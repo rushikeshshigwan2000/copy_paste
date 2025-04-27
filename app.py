@@ -1,59 +1,66 @@
-# better_streamlit_paste_tool.py
-
 import streamlit as st
 import pandas as pd
 import pyperclip
 import os
 
-st.set_page_config(page_title="Smart Paster", page_icon="📋")
+# Initialize a list to store copied items
+copied_items = []
 
-st.title("Smart Excel Paster 📋➡️📄")
+# App title
+st.title("Clipboard-to-Excel Paster")
 
-# Step 1: Select or open Excel file
-file_path = st.text_input("Enter Excel file path (or leave default 'output.xlsx'):", value="output.xlsx")
+# Instructions
+st.write("Copy multiple items from anywhere (browser, Word, etc.).")
 
-# Step 2: Choose columns
-columns = st.multiselect("Select the columns to paste into:", 
-                         options=["Name", "Position", "Department", "Location", "Email", "Phone"])
+# Step 1: Input file path
+file_path = st.text_input("Enter Excel file path (e.g., C:/path/to/your_file.xlsx)")
 
-# Step 3: Paste Button
-if st.button("Paste from Clipboard"):
-    if not columns:
-        st.warning("Please select columns first.")
+# Check if the path exists
+if file_path:
+    if not os.path.exists(file_path):
+        st.error("File does not exist. Please check the path.")
+    else:
+        # Read the existing Excel file
+        df = pd.read_excel(file_path)
+
+        # Display existing data in the Excel file (optional)
+        st.write("Existing data in the file:")
+        st.write(df)
+
+# Button to copy data
+if st.button("Copy from Clipboard"):
+    # Read current clipboard content
+    clipboard_data = pyperclip.paste()
+    if clipboard_data.strip():
+        copied_items.append(clipboard_data.strip())
+        st.success(f"Copied: {clipboard_data}")
+    else:
+        st.error("Clipboard is empty. Copy something first!")
+
+# Show copied items (for feedback)
+st.write("Items copied so far:")
+st.write(copied_items)
+
+# Button to save copied data to Excel
+if st.button("Paste to Excel"):
+    if not copied_items:
+        st.error("No items copied yet!")
+    elif not file_path:
+        st.error("Please enter an Excel file path.")
     else:
         try:
-            pasted_text = pyperclip.paste()
+            # Convert copied items to horizontal format (single row)
+            row_data = copied_items
 
-            if not pasted_text.strip():
-                st.error("Clipboard is empty. Copy something first!")
-            else:
-                # Try to split pasted content (by new lines)
-                pasted_items = pasted_text.strip().split("\n")
-                
-                if len(pasted_items) != len(columns):
-                    st.error(f"Mismatch: You selected {len(columns)} columns but copied {len(pasted_items)} items.")
-                else:
-                    # Open a modal to preview
-                    with st.modal("Confirm Pasted Data"):
-                        st.write("Here is what you copied:")
+            # Append copied data as a new row
+            df = pd.concat([df, pd.DataFrame([row_data])], ignore_index=True)
 
-                        preview = {col: val for col, val in zip(columns, pasted_items)}
-                        st.table(preview.items())
+            # Save the updated Excel file
+            df.to_excel(file_path, index=False)
 
-                        if st.button("Confirm and Save"):
-                            # Load or create Excel
-                            if os.path.exists(file_path):
-                                df = pd.read_excel(file_path)
-                            else:
-                                df = pd.DataFrame(columns=columns)
-
-                            # Add new row
-                            df = pd.concat([df, pd.DataFrame([preview])], ignore_index=True)
-
-                            # Save Excel
-                            df.to_excel(file_path, index=False)
-                            st.success(f"Row saved successfully to {file_path}!")
+            # Clear copied items after saving
+            copied_items.clear()
+            st.success(f"Data pasted and saved to {file_path}!")
 
         except Exception as e:
             st.error(f"Error: {e}")
-
